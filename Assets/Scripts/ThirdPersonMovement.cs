@@ -1,25 +1,46 @@
+using System.Collections;
 using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class ThirdPersonMovement : MonoBehaviour
 {
+    private enum MovementStates
+    {
+        Idle,
+        Walking,
+        InAir,
+        Swinging,
+        OnWall
+    }
+
+    [Header("Debugging")]
+    [SerializeField] private MovementStates currentMovementState;
+
+    [Header("Movement Parameters")]    
+    [SerializeField] private float movementForce = 1f;
+    [SerializeField] private float jumpForce = 2f;
+    [SerializeField] private float maxSpeed = 5f;
+
+    [Header("Referenced Objects")]
+    [SerializeField] private Camera playerCamera;
+
+    //Components
+    private Rigidbody _rigidbody;
+
     //input fields
     private ThirdPersonActionAsset playerActionsAsset;
     private InputAction move;
 
-    //movement fields 
-    private Rigidbody _rigidbody;
-    [SerializeField] private float movementForce = 1f;
-    [SerializeField] private float jumpForce = 2f;
-    [SerializeField] private float maxSpeed = 5f;
+    //Movement Vectors
     private Vector3 forceDirection = Vector3.zero;
-    private bool onWall = false;
     private Vector3 WallNormal;
     private Vector3 WallHorizontal;
     private Vector3 WallVertical;
-    
-    [SerializeField] private Camera playerCamera;
+
+    //Temporary fields
+    private bool wallLock = false;
+    private bool cornerDetected = false;
 
     private void Start()
     {
@@ -34,6 +55,7 @@ public class ThirdPersonMovement : MonoBehaviour
         
         //Instantiate Action Asset
         playerActionsAsset = new ThirdPersonActionAsset();
+        currentMovementState = MovementStates.Idle;
     }
 
     private void OnEnable()
@@ -56,15 +78,10 @@ public class ThirdPersonMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!onWall)
-        {
-            GroundMovement();
-        }
-        else
-        {
+        if (currentMovementState == MovementStates.OnWall)
             WallMovement();
-        }
-        
+        else
+            GroundMovement();        
     }
 
     private void GroundMovement()
@@ -73,19 +90,26 @@ public class ThirdPersonMovement : MonoBehaviour
         forceDirection += move.ReadValue<Vector2>().x * movementForce * GetCameraRight(playerCamera);
         forceDirection += move.ReadValue<Vector2>().y * movementForce * GetCameraForward(playerCamera);
 
-        //Stronger force, when in air
-        forceDirection = IsGrounded() ? forceDirection : forceDirection * 3;
+        if (IsGrounded())
+        {
+            currentMovementState = forceDirection.magnitude > 0 ? MovementStates.Walking : MovementStates.Idle;
+        }
+        else
+        {
+            //Stronger force, when in air
+            forceDirection *= 3;
+            currentMovementState = MovementStates.InAir;
+        }
 
         //Apply Force to body 
         _rigidbody.AddForce(forceDirection, ForceMode.Impulse);
-        
+
         //Reset Force
         forceDirection = Vector3.zero;
 
         //Increase effect of gravity over time
-        if (_rigidbody.velocity.y < 0f)
+        if (_rigidbody.velocity.y < 0f) 
             _rigidbody.velocity -= 8 * Physics.gravity.y * Time.fixedDeltaTime * Vector3.down;
-
 
         //Make sure, that the maxSpeed is not exceeded
         Vector3 horizontalVelocity = _rigidbody.velocity;
@@ -94,58 +118,63 @@ public class ThirdPersonMovement : MonoBehaviour
         if (horizontalVelocity.sqrMagnitude > maxSpeed * maxSpeed)
             _rigidbody.velocity = horizontalVelocity.normalized * maxSpeed + Vector3.up * _rigidbody.velocity.y;
 
-        LookAt();
+        //Set players rotation to movement direction
+        AdjustPlayerRotationGround();
     }
 
     private void WallMovement()
     {
-        //Set Direction based on User
-        //  Left-Right
-        forceDirection += move.ReadValue<Vector2>().x * movementForce/2 * WallHorizontal;
-        
-        /*if(move.ReadValue<Vector2>().x > 0)
+        if (cornerDetected)
+            return;
+
+        if (StickToWall() || wallLock)
         {
-            forceDirection += new Vector3(1, 0, 1);
-        } 
-        else if(move.ReadValue<Vector2>().x < 0)
+            CheckForCorner();
+
+            currentMovementState = MovementStates.OnWall;
+            //Set Direction based on User
+            //  Left-Right
+            forceDirection += move.ReadValue<Vector2>().x * movementForce / 2 * WallHorizontal;
+            //  Up-Down
+            forceDirection += move.ReadValue<Vector2>().y * movementForce / 2 * WallVertical;
+
+            //Apply Force to body 
+            //_rigidbody.AddForce(forceDirection - WallNormal * 2, ForceMode.Impulse);
+            _rigidbody.AddForce(forceDirection, ForceMode.Impulse);
+
+            //Reset Force
+            forceDirection = Vector3.zero;
+
+            //Adjust the players rotation based on direction from user input
+            AdjustPlayerRotationWall();
+        }
+        else
         {
-            forceDirection += new Vector3(-1, 0, -1);
-        }*/
-
-        //Debug.Log(Vector3.Cross(WallNormal, _rigidbody.transform.up));
-
-
-        //  Up-Down
-        forceDirection += move.ReadValue<Vector2>().y * movementForce/2 * WallVertical;
-
-
-        //Debug.Log(forceDirection);
-        //Apply Force to body 
-        _rigidbody.AddForce(forceDirection, ForceMode.Impulse);
-
-        //Reset Force
-        forceDirection = Vector3.zero;
-
-
-        //Make sure, that the maxSpeed is not exceeded
-        Vector3 verticalVelocity = _rigidbody.velocity;
-        verticalVelocity.z = 0;
-
-        if (verticalVelocity.sqrMagnitude > maxSpeed * maxSpeed) { }
-            //_rigidbody.velocity = verticalVelocity.normalized * maxSpeed + Vector3.forward * _rigidbody.velocity.z;
-
-        //LookAt();
+                currentMovementState = MovementStates.InAir;
+                InitGroundMovement();
+        }
     }
 
-    private void LookAt()
+    private void AdjustPlayerRotationGround()
     {
         Vector3 direction = _rigidbody.velocity;
+        
         direction.y = 0f;
 
         if (move.ReadValue<Vector2>().sqrMagnitude > 0.1f && direction.sqrMagnitude > 0.1f)
-            this._rigidbody.rotation = Quaternion.LookRotation(direction, Vector3.up);
+            this.transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
         else
             _rigidbody.angularVelocity = Vector3.zero;
+    }
+
+    private void AdjustPlayerRotationWall()
+    {
+        Vector3 direction = _rigidbody.velocity;
+
+        if (move.ReadValue<Vector2>().sqrMagnitude > 0.1f && direction.sqrMagnitude > 0.1f)
+            _rigidbody.transform.rotation = Quaternion.LookRotation(-WallNormal, direction);
+        else
+            _rigidbody.angularVelocity = Vector3.zero;            
     }
 
     private Vector3 GetCameraForward(Camera p_playerCamera)
@@ -164,80 +193,134 @@ public class ThirdPersonMovement : MonoBehaviour
         return right.normalized;
     }
 
-    private Vector3 GetCameraUp(Camera p_playerCamera)
-    {
-        Vector3 up = p_playerCamera.transform.up;
-
-        up.z = 0;
-        return up.normalized;
-    }
-
     private void DoJump(InputAction.CallbackContext obj)
     {
         if (IsGrounded())
         {
             forceDirection += Vector3.up * jumpForce;
         }
-        else if (onWall)
+        else if (currentMovementState == MovementStates.OnWall)
         {
             InitGroundMovement();
         }
+
+        currentMovementState = MovementStates.InAir;
     }
 
     private bool IsGrounded()
     {
         Ray ray = new(this.transform.position , Vector3.down);
 
-        return Physics.Raycast(ray, out RaycastHit hit, 1);
+        return Physics.Raycast(ray, out _, 1);
     }
 
     private bool StickToWall()
-    {
-        Ray ray = new(this.transform.position, _rigidbody.transform.forward);
+    {        
+        Ray rayForward = new(_rigidbody.transform.position, _rigidbody.transform.forward);
+        
+        Ray rayForwardFoot = new((_rigidbody.transform.position - _rigidbody.transform.up), _rigidbody.transform.forward);
 
-        return Physics.Raycast(ray, out RaycastHit hit, 0.6f);
+        if(currentMovementState == MovementStates.Walking || currentMovementState == MovementStates.InAir)
+            return (Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayForwardFoot, out _, 0.6f));
+        else if(currentMovementState == MovementStates.OnWall)
+            return (Physics.Raycast(rayForward, out _, 0.6f) || Physics.Raycast(rayForwardFoot, out _, 0.6f));
+        else return false;
+
     }
 
     private void OnCollisionEnter(Collision collision)
     {
         if (StickToWall())
         {
-            Debug.Log("Wall Collision detected");
             InitWallMovement();
-            Debug.Log("Contact normal 1 : " + collision.GetContact(0).normal);
+
             WallNormal = collision.GetContact(0).normal.normalized;
             WallHorizontal = Vector3.Cross(WallNormal, Vector3.up);
             WallVertical = Vector3.Cross(WallNormal, -_rigidbody.transform.right);
 
-            Debug.Log("Wall Normal: " + WallNormal);
-            Debug.Log("Wall Horizontal: " + WallHorizontal);
-            Debug.Log("Wall Vertical: " + WallVertical);
+            
+            currentMovementState = MovementStates.OnWall;
         }             
-    }
-
-    private void OnCollisionExit(Collision collision)
-    {
-        if (!StickToWall()) 
-        {
-            Debug.Log("Wall Collision exit");
-            InitGroundMovement();
-            WallNormal = Vector3.zero;
-        }
     }
 
     private void InitWallMovement()
     {
         _rigidbody.useGravity = false;
-        _rigidbody.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationX;
-        onWall = true;
-        Debug.Log("Up Vector: " + _rigidbody.transform.up);
-        
+        //_rigidbody.constraints = RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationX;
+        _rigidbody.constraints = RigidbodyConstraints.FreezeRotationZ;
     }
 
     private void InitGroundMovement()
     {
-        onWall = false;
         _rigidbody.useGravity = true;
         _rigidbody.constraints = RigidbodyConstraints.FreezeRotationZ | RigidbodyConstraints.FreezeRotationX;
+    }
+
+    private void CheckForCorner()
+    {
+        //Ray rayForward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f + _rigidbody.transform.forward * 0.3f , _rigidbody.transform.forward);
+        //Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.7f + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward - _rigidbody.transform.up);
+
+        Ray rayForward = new(_rigidbody.transform.position + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward);
+        Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.3f + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward - _rigidbody.transform.up);
+
+
+        if (!Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayDownward, out RaycastHit wallHit, 1.0f)){
+
+            Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward * 10, Color.yellow, 1);
+            Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.3f + _rigidbody.transform.forward * 0.3f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 10, Color.red, 1);
+
+            cornerDetected = true;
+            wallLock = true;
+
+            if(wallHit.normal != Vector3.up)
+            {
+                Debug.Log("Corner detected");
+                Debug.Log(wallHit.collider.name + " | " + wallHit.normal);
+
+                StartCoroutine(GoAroundCorner(_rigidbody.rotation, wallHit.normal));
+            }
+
+            //wallLock = false;
+        }
+    }
+
+    IEnumerator GoAroundCorner(Quaternion pRotation, Vector3 newWall)
+    {
+        Quaternion initRotation = pRotation;
+        _rigidbody.velocity = Vector3.zero;
+
+        while (Quaternion.Angle(initRotation, _rigidbody.rotation) < 90)
+        {
+            _rigidbody.AddForce(_rigidbody.transform.up * 0.03f, ForceMode.Impulse);
+
+            Quaternion startRotation = _rigidbody.transform.rotation;
+            _rigidbody.rotation = startRotation * Quaternion.AngleAxis(5, Vector3.right);
+
+            yield return null;
+        }
+
+        /*
+        if(_rigidbody.rotation.eulerAngles.z < 0 && _rigidbody.rotation.eulerAngles.z != -90)
+        {
+            Quaternion startRotation = _rigidbody.transform.rotation;
+            float newRotation = _rigidbody.rotation.eulerAngles.z - 90;
+            Debug.Log("Minus: " + newRotation);
+            _rigidbody.rotation = startRotation * Quaternion.AngleAxis(newRotation, Vector3.up);
+        } 
+        else if(_rigidbody.rotation.eulerAngles.z > 0 && _rigidbody.rotation.eulerAngles.z != 90)
+        {
+            Debug.Log(_rigidbody.rotation.eulerAngles.z);
+            Quaternion startRotation = _rigidbody.transform.rotation;
+            float newRotation = _rigidbody.rotation.eulerAngles.z + 90;
+            Debug.Log("Plus: " + newRotation);
+            _rigidbody.rotation = startRotation * Quaternion.AngleAxis(newRotation, Vector3.up);
+        }*/
+
+        WallNormal = newWall.normalized;
+        WallHorizontal = Vector3.Cross(newWall, Vector3.up);
+        WallVertical = Vector3.Cross(newWall, -_rigidbody.transform.up);
+
+        cornerDetected = false;
     }
 }

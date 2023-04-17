@@ -577,7 +577,7 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 277032318}
-  m_LocalRotation: {x: 0.1897639, y: -0.000000023891346, z: 0.000000004617618, w: 0.98182976}
+  m_LocalRotation: {x: 0.1897639, y: 0.000000023891355, z: -0.0000000046176196, w: 0.98182976}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -1361,8 +1361,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 963194225}
-  m_LocalRotation: {x: 0.18976389, y: -0.0000000477827, z: 0.000000009235237, w: 0.98182976}
-  m_LocalPosition: {x: 1, y: 5, z: -3.9299998}
+  m_LocalRotation: {x: 0.18976389, y: 0.000000047782702, z: -0.0000000092352375, w: 0.98182976}
+  m_LocalPosition: {x: 0.46, y: 5.9, z: -4.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1533,7 +1533,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 969221342}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1, y: 5, z: -3.9299998}
+  m_LocalPosition: {x: 0.46, y: 5.9, z: -4.61}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2180,7 +2180,7 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1226112311}
-  m_LocalRotation: {x: 0.2075915, y: -0.000000029153089, z: 0.000000006186707, w: 0.97821563}
+  m_LocalRotation: {x: 0.2075915, y: -0.000000029153092, z: 0.000000006186708, w: 0.97821563}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -2216,7 +2216,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1236766005}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 1, y: 1, z: 5.07}
+  m_LocalPosition: {x: 0.46, y: 1.9, z: 4.39}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -2236,6 +2236,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 775963b126068c34a9f2726eba7b29c5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  currentMovementState: 0
   movementForce: 2
   jumpForce: 35
   maxSpeed: 4
@@ -2250,7 +2251,7 @@ Rigidbody:
   serializedVersion: 2
   m_Mass: 1
   m_Drag: 3.5
-  m_AngularDrag: 10
+  m_AngularDrag: 0
   m_UseGravity: 1
   m_IsKinematic: 0
   m_Interpolate: 1
