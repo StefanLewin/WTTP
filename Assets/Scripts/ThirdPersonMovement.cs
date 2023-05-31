@@ -3,8 +3,14 @@ using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// This class manages the user input for the movement of the player.
+/// </summary>
 public class ThirdPersonMovement : MonoBehaviour
 {
+    /// <summary>
+    /// Definiton of all possible movement-states
+    /// </summary>
     private enum MovementStates
     {
         Idle,
@@ -15,39 +21,95 @@ public class ThirdPersonMovement : MonoBehaviour
     }
 
     [Header("Debugging")]
+    /// <summary>
+    /// Shows the current movement state in the inspector panel.
+    /// </summary>
     [SerializeField] private MovementStates currentMovementState;
 
-    [Header("Movement Parameters")]    
+    [Header("Movement Parameters")]
+    /// <summary>
+    /// The movement force defines how fast the player is moving.
+    /// </summary>
     [SerializeField] private float movementForce = 1f;
+    /// <summary>
+    /// The jump force defines how high the player is able to jump. 
+    /// </summary>
     [SerializeField] private float jumpForce = 2f;
+    /// <summary>
+    /// Max Speed caps the movement speed, so the player does not accelerate to infinity.
+    /// </summary>
     [SerializeField] private float maxSpeed = 5f;
 
     [Header("Referenced Objects")]
+    /// <summary>
+    /// Reference to the player camera.
+    /// </summary>
     [SerializeField] private Camera playerCamera;
 
-    //Components
+    /// <summary>
+    /// Reference to the rigidbody component of the player
+    /// </summary>
     private Rigidbody _rigidbody;
 
-    //input fields
+    /// <summary>
+    /// Reference to the Action Asset of the third person movement.
+    /// </summary>
     private ThirdPersonActionAsset playerActionsAsset;
+
+    /// <summary>
+    /// Reference to the move InputAction.
+    /// </summary>
     private InputAction move;
 
-    //Movement Vectors
+    /// <summary>
+    /// A vector, which represents the direction in which the player is moving.
+    /// </summary>
     private Vector3 forceDirection = Vector3.zero;
+
+    /// <summary>
+    /// The normal vector of the wall, the player is attached to. 
+    /// Relevant for Wall Movement.
+    /// </summary>
     private Vector3 WallNormal;
+
+    /// <summary>
+    /// The Vector which is horizontal to the current WallNormal. 
+    /// Relevant for Wall Movement.
+    /// </summary>
     private Vector3 WallHorizontal;
+
+    /// <summary>
+    /// The Vector which is vertical to the current Wall Normal.
+    /// Relevant for Wall Movement.
+    /// </summary>
     private Vector3 WallVertical;
 
-    //Temporary fields
+    /// <summary>
+    /// TEMPORARY TEST VARIABLE
+    /// Prevents the player from leaving Wall Movement, unless the jump action is performed.
+    /// </summary>
     private bool wallLock = false;
+
+    /// <summary>
+    /// TEMPORARY TEST VARIABLE
+    /// Disables all movement input, until the player has gone around a corner.
+    /// </summary>
     private bool cornerDetected = false;
 
+    /// <summary>
+    /// Start is called on the frame when a script is enabled just before any of the Update methods are called the first time.
+    /// </summary>
     private void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
 
+    /// <summary>
+    /// Awake is called when the script instance is being loaded.
+    /// Assigning reference to rigidbody component.
+    /// Instantiating Action Asset.
+    /// </summary>
     private void Awake()
     {
         //Reference Rigidbody Component
@@ -58,6 +120,9 @@ public class ThirdPersonMovement : MonoBehaviour
         currentMovementState = MovementStates.Idle;
     }
 
+    /// <summary>
+    /// This function is called when the object becomes enabled and active.
+    /// </summary>
     private void OnEnable()
     {
         //Subsribe DoJump() method to the Jump Action in the Action Asset
@@ -70,16 +135,27 @@ public class ThirdPersonMovement : MonoBehaviour
         playerActionsAsset.Player.Enable();
     }
 
+    /// <summary>
+    /// This function is called when the behaviour becomes disabled.
+    /// </summary>
     private void OnDisable()
     {
+        //Unsubsribe DoJump() method to the Jump Action in the Action Asset
         playerActionsAsset.Player.Jump.started -= DoJump;
+
+        //Disable the Action Asset
         playerActionsAsset.Player.Disable();
     }
 
+    /// <summary>
+    /// Frame-Rate independent update method.
+    /// </summary>
     private void FixedUpdate()
     {
         Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward * 10, Color.yellow, 1);                      //Forward
         Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 1.2f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 10, Color.red, 1);    //Downward
+
+        //Switch between Wall- and Ground-Movement, based on current MovementState.
 
         if (currentMovementState == MovementStates.OnWall)
             WallMovement();
@@ -87,6 +163,9 @@ public class ThirdPersonMovement : MonoBehaviour
             GroundMovement();        
     }
 
+    /// <summary>
+    /// This method defines the player movement, when it is moving along the ground.
+    /// </summary>
     private void GroundMovement()
     {
         //Set Direction based on User Input
@@ -125,8 +204,12 @@ public class ThirdPersonMovement : MonoBehaviour
         AdjustPlayerRotationGround();
     }
 
+    /// <summary>
+    /// This method defines the player movement, when it is moving along a wall.
+    /// </summary>
     private void WallMovement()
     {
+        //TEST: Disable movement while moving around a corner.
         if (cornerDetected)
             return;
 
@@ -158,6 +241,9 @@ public class ThirdPersonMovement : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// This method sets the players rotation to the movement direction, while moving along the ground.
+    /// </summary>
     private void AdjustPlayerRotationGround()
     {
         Vector3 direction = _rigidbody.velocity;
@@ -170,6 +256,9 @@ public class ThirdPersonMovement : MonoBehaviour
             _rigidbody.angularVelocity = Vector3.zero;
     }
 
+    /// <summary>
+    /// This method sets the players rotation to the movement direction, while moving along a wall.
+    /// </summary>
     private void AdjustPlayerRotationWall()
     {
         Vector3 direction = _rigidbody.velocity;
@@ -180,6 +269,12 @@ public class ThirdPersonMovement : MonoBehaviour
             _rigidbody.angularVelocity = Vector3.zero;            
     }
 
+    /// <summary>
+    /// Helper method for Grond Movement.
+    /// Gets the forward Vector of the camera, so the player will move in the direction where the camera is pointing to.
+    /// </summary>
+    /// <param name="p_playerCamera"></param>
+    /// <returns></returns>
     private Vector3 GetCameraForward(Camera p_playerCamera)
     {
         Vector3 forward = p_playerCamera.transform.forward;
@@ -188,6 +283,12 @@ public class ThirdPersonMovement : MonoBehaviour
         return forward.normalized;
     }
 
+    /// <summary>
+    /// Helper method for Grond Movement.
+    /// Gets the Right Vector of the camera, so the player will move in the direction where the camera is pointing to.
+    /// </summary>
+    /// <param name="p_playerCamera"></param>
+    /// <returns></returns>
     private Vector3 GetCameraRight(Camera p_playerCamera)
     {
         Vector3 right = p_playerCamera.transform.right;
@@ -196,6 +297,11 @@ public class ThirdPersonMovement : MonoBehaviour
         return right.normalized;
     }
 
+    /// <summary>
+    /// The method being executed, when the Jump action is called.
+    /// THis method will be subscribed to the appropiate InputAction in the OnEnable()-method.
+    /// </summary>
+    /// <param name="obj"></param>
     private void DoJump(InputAction.CallbackContext obj)
     {
         if (IsGrounded())
@@ -206,6 +312,10 @@ public class ThirdPersonMovement : MonoBehaviour
         currentMovementState = MovementStates.InAir;
     }
 
+    /// <summary>
+    /// Checks, if the player is touching the ground.
+    /// </summary>
+    /// <returns></returns>
     private bool IsGrounded()
     {
         Ray ray = new(this.transform.position , Vector3.down);
@@ -213,22 +323,29 @@ public class ThirdPersonMovement : MonoBehaviour
         return Physics.Raycast(ray, out _, 1);
     }
 
+    /// <summary>
+    /// This method check, if the player should stick to a wall.
+    /// </summary>
+    /// <returns>True, if yes. False, if not.</returns>
     private bool StickToWall()
     {        
         Ray rayForward = new(_rigidbody.transform.position, _rigidbody.transform.forward);
-        
         Ray rayForwardFoot = new((_rigidbody.transform.position - _rigidbody.transform.up), _rigidbody.transform.forward);
-
         Ray rayForwardHead = new((_rigidbody.transform.position + _rigidbody.transform.up), _rigidbody.transform.forward);
 
+        //If not already on a wall, both rays have to return true. (In case the player only hits a curb for example)
+        //If on a wall, only one ray needs to return true. (In case if player peeks around the corner.)
         if(currentMovementState == MovementStates.Walking || currentMovementState == MovementStates.InAir)
             return (Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayForwardFoot, out _, 0.6f));
         else if(currentMovementState == MovementStates.OnWall)
             return (Physics.Raycast(rayForward, out _, 0.6f) || Physics.Raycast(rayForwardFoot, out _, 0.6f) || Physics.Raycast(rayForwardHead, out _, 0.6f));
         else return false;
-
     }
 
+    /// <summary>
+    /// OnCollisionEnter is called when this collider/rigidbody has begun touching another rigidbody/collider.
+    /// </summary>
+    /// <param name="collision"></param>
     private void OnCollisionEnter(Collision collision)
     {
         if (StickToWall())
@@ -244,6 +361,9 @@ public class ThirdPersonMovement : MonoBehaviour
         }             
     }
 
+    /// <summary>
+    /// Sets gravity and constraints needed for wall movement.
+    /// </summary>
     private void InitWallMovement()
     {
         _rigidbody.useGravity = false;
@@ -251,12 +371,20 @@ public class ThirdPersonMovement : MonoBehaviour
         _rigidbody.constraints = RigidbodyConstraints.FreezeRotationZ;
     }
 
+    /// <summary>
+    /// Sets gravity and constraints needed for ground movement.
+    /// </summary>
     private void InitGroundMovement()
     {
         _rigidbody.useGravity = true;
         _rigidbody.constraints = RigidbodyConstraints.FreezeRotationZ | RigidbodyConstraints.FreezeRotationX;
     }
 
+    /// <summary>
+    /// WORK IN PROGRESS
+    /// Sends out two rays, to check if player wants to go around a corner in wall movement.
+    /// Initiates a Coroutine to go around a corner, if this is the case
+    /// </summary>
     private void CheckForCorner()
     {
 
@@ -275,7 +403,6 @@ public class ThirdPersonMovement : MonoBehaviour
                 Debug.Log(wallHit.collider.name + " | " + wallHit.normal);
 
                 _rigidbody.velocity = Vector3.zero;
-
                 
                 Quaternion initRotation = _rigidbody.rotation;
                 Quaternion newRotation = initRotation * Quaternion.AngleAxis(90, Vector3.right);
