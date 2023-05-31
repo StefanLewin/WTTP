@@ -78,6 +78,9 @@ public class ThirdPersonMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward * 10, Color.yellow, 1);                      //Forward
+        Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 1.2f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 10, Color.red, 1);    //Downward
+
         if (currentMovementState == MovementStates.OnWall)
             WallMovement();
         else
@@ -139,7 +142,7 @@ public class ThirdPersonMovement : MonoBehaviour
             forceDirection += move.ReadValue<Vector2>().y * movementForce / 2 * WallVertical;
 
             //Apply Force to body 
-            //_rigidbody.AddForce(forceDirection - WallNormal * 2, ForceMode.Impulse);
+            //_rigidbody.AddForce(- WallNormal * 2, ForceMode.Impulse);
             _rigidbody.AddForce(forceDirection, ForceMode.Impulse);
 
             //Reset Force
@@ -196,13 +199,9 @@ public class ThirdPersonMovement : MonoBehaviour
     private void DoJump(InputAction.CallbackContext obj)
     {
         if (IsGrounded())
-        {
             forceDirection += Vector3.up * jumpForce;
-        }
         else if (currentMovementState == MovementStates.OnWall)
-        {
             InitGroundMovement();
-        }
 
         currentMovementState = MovementStates.InAir;
     }
@@ -220,10 +219,12 @@ public class ThirdPersonMovement : MonoBehaviour
         
         Ray rayForwardFoot = new((_rigidbody.transform.position - _rigidbody.transform.up), _rigidbody.transform.forward);
 
+        Ray rayForwardHead = new((_rigidbody.transform.position + _rigidbody.transform.up), _rigidbody.transform.forward);
+
         if(currentMovementState == MovementStates.Walking || currentMovementState == MovementStates.InAir)
             return (Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayForwardFoot, out _, 0.6f));
         else if(currentMovementState == MovementStates.OnWall)
-            return (Physics.Raycast(rayForward, out _, 0.6f) || Physics.Raycast(rayForwardFoot, out _, 0.6f));
+            return (Physics.Raycast(rayForward, out _, 0.6f) || Physics.Raycast(rayForwardFoot, out _, 0.6f) || Physics.Raycast(rayForwardHead, out _, 0.6f));
         else return false;
 
     }
@@ -258,19 +259,14 @@ public class ThirdPersonMovement : MonoBehaviour
 
     private void CheckForCorner()
     {
-        //Ray rayForward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f + _rigidbody.transform.forward * 0.3f , _rigidbody.transform.forward);
-        //Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.7f + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward - _rigidbody.transform.up);
 
-        Ray rayForward = new(_rigidbody.transform.position + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward);
-        Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.3f + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward - _rigidbody.transform.up);
+        Ray rayForward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward);
+        Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 1.2f, _rigidbody.transform.forward - _rigidbody.transform.up);
 
 
         if (!Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayDownward, out RaycastHit wallHit, 1.0f)){
 
-            Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.forward * 0.3f, _rigidbody.transform.forward * 10, Color.yellow, 1);
-            Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.3f + _rigidbody.transform.forward * 0.3f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 10, Color.red, 1);
-
-            cornerDetected = true;
+            //cornerDetected = true;
             wallLock = true;
 
             if(wallHit.normal != Vector3.up)
@@ -278,49 +274,24 @@ public class ThirdPersonMovement : MonoBehaviour
                 Debug.Log("Corner detected");
                 Debug.Log(wallHit.collider.name + " | " + wallHit.normal);
 
-                StartCoroutine(GoAroundCorner(_rigidbody.rotation, wallHit.normal));
+                _rigidbody.velocity = Vector3.zero;
+
+                
+                Quaternion initRotation = _rigidbody.rotation;
+                Quaternion newRotation = initRotation * Quaternion.AngleAxis(90, Vector3.right);
+                Vector3 newPosition = _rigidbody.position + _rigidbody.transform.up;
+
+                _rigidbody.MovePosition(newPosition);
+                _rigidbody.MoveRotation(newRotation);
+
+                WallNormal = wallHit.normal.normalized;
+                WallHorizontal = Vector3.Cross(wallHit.normal, Vector3.up);
+                WallVertical = (_rigidbody.transform.right.Equals(Vector3.up)) ? Vector3.Cross(wallHit.normal, _rigidbody.transform.up) : Vector3.Cross(wallHit.normal, -_rigidbody.transform.up);
+                
             }
 
-            //wallLock = false;
+            wallLock = false;
         }
     }
 
-    IEnumerator GoAroundCorner(Quaternion pRotation, Vector3 newWall)
-    {
-        Quaternion initRotation = pRotation;
-        _rigidbody.velocity = Vector3.zero;
-
-        while (Quaternion.Angle(initRotation, _rigidbody.rotation) < 90)
-        {
-            _rigidbody.AddForce(_rigidbody.transform.up * 0.03f, ForceMode.Impulse);
-
-            Quaternion startRotation = _rigidbody.transform.rotation;
-            _rigidbody.rotation = startRotation * Quaternion.AngleAxis(5, Vector3.right);
-
-            yield return null;
-        }
-
-        /*
-        if(_rigidbody.rotation.eulerAngles.z < 0 && _rigidbody.rotation.eulerAngles.z != -90)
-        {
-            Quaternion startRotation = _rigidbody.transform.rotation;
-            float newRotation = _rigidbody.rotation.eulerAngles.z - 90;
-            Debug.Log("Minus: " + newRotation);
-            _rigidbody.rotation = startRotation * Quaternion.AngleAxis(newRotation, Vector3.up);
-        } 
-        else if(_rigidbody.rotation.eulerAngles.z > 0 && _rigidbody.rotation.eulerAngles.z != 90)
-        {
-            Debug.Log(_rigidbody.rotation.eulerAngles.z);
-            Quaternion startRotation = _rigidbody.transform.rotation;
-            float newRotation = _rigidbody.rotation.eulerAngles.z + 90;
-            Debug.Log("Plus: " + newRotation);
-            _rigidbody.rotation = startRotation * Quaternion.AngleAxis(newRotation, Vector3.up);
-        }*/
-
-        WallNormal = newWall.normalized;
-        WallHorizontal = Vector3.Cross(newWall, Vector3.up);
-        WallVertical = Vector3.Cross(newWall, -_rigidbody.transform.up);
-
-        cornerDetected = false;
-    }
 }
