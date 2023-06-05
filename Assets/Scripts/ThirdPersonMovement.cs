@@ -1,3 +1,4 @@
+using Cinemachine.Utility;
 using System.Collections;
 using Unity.VisualScripting;
 using UnityEngine;
@@ -46,55 +47,26 @@ public class ThirdPersonMovement : MonoBehaviour
     /// </summary>
     [SerializeField] private Camera playerCamera;
 
-    /// <summary>
-    /// Reference to the rigidbody component of the player
-    /// </summary>
     private Rigidbody _rigidbody;
-
-    /// <summary>
-    /// Reference to the Action Asset of the third person movement.
-    /// </summary>
     private ThirdPersonActionAsset playerActionsAsset;
-
-    /// <summary>
-    /// Reference to the move InputAction.
-    /// </summary>
     private InputAction move;
-
-    /// <summary>
-    /// A vector, which represents the direction in which the player is moving.
-    /// </summary>
     private Vector3 forceDirection = Vector3.zero;
-
-    /// <summary>
-    /// The normal vector of the wall, the player is attached to. 
-    /// Relevant for Wall Movement.
-    /// </summary>
     private Vector3 WallNormal;
-
-    /// <summary>
-    /// The Vector which is horizontal to the current WallNormal. 
-    /// Relevant for Wall Movement.
-    /// </summary>
     private Vector3 WallHorizontal;
-
-    /// <summary>
-    /// The Vector which is vertical to the current Wall Normal.
-    /// Relevant for Wall Movement.
-    /// </summary>
     private Vector3 WallVertical;
 
-    /// <summary>
-    /// TEMPORARY TEST VARIABLE
-    /// Prevents the player from leaving Wall Movement, unless the jump action is performed.
-    /// </summary>
+
+    // TEMPORARY TEST VARIABLE
+    // Prevents the player from leaving Wall Movement, unless the jump action is performed.
     private bool wallLock = false;
 
-    /// <summary>
-    /// TEMPORARY TEST VARIABLE
-    /// Disables all movement input, until the player has gone around a corner.
-    /// </summary>
+    // TEMPORARY TEST VARIABLE
+    // Disables all movement input, until the player has gone around a corner.
     private bool cornerDetected = false;
+
+    private Vector3 WallHitPosition;
+
+    [SerializeField] private Transform rotationAnchor;
 
     /// <summary>
     /// Start is called on the frame when a script is enabled just before any of the Update methods are called the first time.
@@ -113,7 +85,7 @@ public class ThirdPersonMovement : MonoBehaviour
     private void Awake()
     {
         //Reference Rigidbody Component
-        _rigidbody= GetComponent<Rigidbody>();
+        _rigidbody = GetComponent<Rigidbody>();
         
         //Instantiate Action Asset
         playerActionsAsset = new ThirdPersonActionAsset();
@@ -152,8 +124,10 @@ public class ThirdPersonMovement : MonoBehaviour
     /// </summary>
     private void FixedUpdate()
     {
-        Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward * 10, Color.yellow, 1);                      //Forward
-        Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 1.2f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 10, Color.red, 1);    //Downward
+        //Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward * 10, Color.yellow, 1);                      //Forward
+        //Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 1.25f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 1, Color.red, 1);    //Downward
+
+        //Debug.DrawRay(WallHitPosition, WallNormal * 10, Color.green, 5);
 
         //Switch between Wall- and Ground-Movement, based on current MovementState.
 
@@ -333,13 +307,21 @@ public class ThirdPersonMovement : MonoBehaviour
         Ray rayForwardFoot = new((_rigidbody.transform.position - _rigidbody.transform.up), _rigidbody.transform.forward);
         Ray rayForwardHead = new((_rigidbody.transform.position + _rigidbody.transform.up), _rigidbody.transform.forward);
 
+        Debug.DrawRay(_rigidbody.transform.position, _rigidbody.transform.forward * 10, Color.yellow, 5);
+        Debug.DrawRay((_rigidbody.transform.position - _rigidbody.transform.up), _rigidbody.transform.forward * 10, Color.yellow, 5);
+        Debug.DrawRay((_rigidbody.transform.position + _rigidbody.transform.up), _rigidbody.transform.forward * 10, Color.yellow, 5);
+
         //If not already on a wall, both rays have to return true. (In case the player only hits a curb for example)
         //If on a wall, only one ray needs to return true. (In case if player peeks around the corner.)
-        if(currentMovementState == MovementStates.Walking || currentMovementState == MovementStates.InAir)
+        if (currentMovementState == MovementStates.Walking || currentMovementState == MovementStates.InAir)
             return (Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayForwardFoot, out _, 0.6f));
-        else if(currentMovementState == MovementStates.OnWall)
+        else if (currentMovementState == MovementStates.OnWall)
             return (Physics.Raycast(rayForward, out _, 0.6f) || Physics.Raycast(rayForwardFoot, out _, 0.6f) || Physics.Raycast(rayForwardHead, out _, 0.6f));
-        else return false;
+        else
+        {
+            Debug.Log("STICK TO WALL HAT NICHT GEKLAPPT");
+            return false;
+        }
     }
 
     /// <summary>
@@ -354,9 +336,19 @@ public class ThirdPersonMovement : MonoBehaviour
 
             WallNormal = collision.GetContact(0).normal.normalized;
             WallHorizontal = Vector3.Cross(WallNormal, Vector3.up);
-            WallVertical = Vector3.Cross(WallNormal, -_rigidbody.transform.right);
+            WallVertical = Vector3.Cross(WallNormal, WallHorizontal).Abs().normalized;
 
-            
+            WallHitPosition = collision.GetContact(0).thisCollider.transform.position;
+            Debug.DrawRay(WallHitPosition, WallNormal * 10, Color.green, 20);
+            Debug.DrawRay(WallHitPosition, WallHorizontal * 10, Color.magenta, 20);
+            Debug.DrawRay(WallHitPosition, WallVertical * 10, Color.white, 20);
+
+            /*
+            WallNormal = collision.GetContact(0).normal.normalized;
+            WallHorizontal = Vector3.Cross(WallNormal, Vector3.up);
+            WallHorizontal = Vector3.Cross(WallNormal, WallHorizontal).normalized;
+            Debug.Log("NORMAL: " + WallNormal + " | HORIZONTAL: " + WallHorizontal + " | VERTICAL: " + WallVertical);
+            */
             currentMovementState = MovementStates.OnWall;
         }             
     }
@@ -389,36 +381,64 @@ public class ThirdPersonMovement : MonoBehaviour
     {
 
         Ray rayForward = new(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward);
-        Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 1.2f, _rigidbody.transform.forward - _rigidbody.transform.up);
+        Ray rayDownward = new(_rigidbody.transform.position + _rigidbody.transform.up * 1.25f, _rigidbody.transform.forward - _rigidbody.transform.up);
 
 
-        if (!Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayDownward, out RaycastHit wallHit, 1.0f)){
+        if (!Physics.Raycast(rayForward, out _, 0.6f) && Physics.Raycast(rayDownward, out RaycastHit wallHit, 1.5f)){
 
-            //cornerDetected = true;
-            wallLock = true;
-
-            if(wallHit.normal != Vector3.up)
+            if(wallHit.normal != Vector3.up && !wallLock)
             {
+                WallHitPosition = wallHit.collider.transform.position;  
+                
+                /*
                 Debug.Log("Corner detected");
                 Debug.Log(wallHit.collider.name + " | " + wallHit.normal);
+                Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 0.5f, _rigidbody.transform.forward * 10, Color.yellow, 5);                      //Forward
+                Debug.DrawRay(_rigidbody.transform.position + _rigidbody.transform.up * 1.25f, (_rigidbody.transform.forward - _rigidbody.transform.up) * 10, Color.red, 5);    //Downward
+                */
 
                 _rigidbody.velocity = Vector3.zero;
-                
-                Quaternion initRotation = _rigidbody.rotation;
-                Quaternion newRotation = initRotation * Quaternion.AngleAxis(90, Vector3.right);
-                Vector3 newPosition = _rigidbody.position + _rigidbody.transform.up;
 
-                _rigidbody.MovePosition(newPosition);
-                _rigidbody.MoveRotation(newRotation);
-
-                WallNormal = wallHit.normal.normalized;
-                WallHorizontal = Vector3.Cross(wallHit.normal, Vector3.up);
-                WallVertical = (_rigidbody.transform.right.Equals(Vector3.up)) ? Vector3.Cross(wallHit.normal, _rigidbody.transform.up) : Vector3.Cross(wallHit.normal, -_rigidbody.transform.up);
+                WallNormal = wallHit.normal.normalized;                        
+                WallHorizontal = Vector3.Cross(wallHit.normal, Vector3.up);                        
+                WallVertical = Vector3.Cross(wallHit.normal, WallHorizontal).Abs().normalized;
                 
+                /*
+                Debug.DrawRay(WallHitPosition, WallNormal * 10, Color.green, 20);
+                Debug.DrawRay(WallHitPosition, WallHorizontal * 10, Color.magenta, 20);
+                Debug.DrawRay(WallHitPosition, WallVertical * 10, Color.white, 20);
+                Debug.Log("NORMAL: " + WallNormal + " | HORIZOINTAL: " + WallHorizontal + " | VERTICAL: " + WallVertical);
+                */
+                StartCoroutine(CornerCoroutine());
             }
-
-            wallLock = false;
         }
     }
 
+    IEnumerator CornerCoroutine()
+    {
+        Debug.Log("Corner Coroutine started!");
+        cornerDetected= true;
+        wallLock = true;
+
+        int rotationAngle = 10;
+        Vector3 moveDirection = _rigidbody.transform.right;
+
+        if(_rigidbody.transform.right.y < 0)
+        {
+            rotationAngle = -10;
+            moveDirection = -_rigidbody.transform.right;
+        }
+
+        _rigidbody.transform.Translate(moveDirection / 2);
+
+
+        for (int i = 0; i < 9; i++)
+        {
+            _rigidbody.transform.RotateAround(rotationAnchor.position, Vector3.up, rotationAngle);
+            yield return new WaitForFixedUpdate();
+        }
+        wallLock = false;
+        cornerDetected = false;
+        Debug.Log("Corner Coroutine finished!");
+    }
 }

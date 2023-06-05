@@ -6,6 +6,7 @@ public class RotationTest : MonoBehaviour
 {
     [SerializeField] private DebugScriptableObject _debugSO;
     [SerializeField] private Rigidbody _rigidbody;
+    [SerializeField] private Transform _anchorPoint;
 
     // Start is called before the first frame update
     void Start()
@@ -16,7 +17,7 @@ public class RotationTest : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        
+        //_rigidbody.transform.RotateAround(_anchorPoint.position, Vector3.up, -20 * Time.deltaTime);
     }
 
     public void RotateTestOne()
@@ -45,6 +46,25 @@ public class RotationTest : MonoBehaviour
     public void RotateTestThree()
     {
         _debugSO.generalDebugMessage = "Rotate 3";
+        
+        _rigidbody.transform.Translate(-_rigidbody.transform.right / 2);
+
+        
+
+
+        StartCoroutine(ThirdTestCoroutine());
+    }
+
+    IEnumerator ThirdTestCoroutine()
+    {
+        Vector3 newPosition = _rigidbody.position - _rigidbody.transform.up / 2;
+        //_rigidbody.MovePosition(newPosition);
+
+        for (int i = 0; i < 9; i++)
+        {
+            _rigidbody.transform.RotateAround(_anchorPoint.position, Vector3.up, -10);
+            yield return new WaitForFixedUpdate();
+        }
     }
 
     public void RotateTestFour()
